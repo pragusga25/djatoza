@@ -1,0 +1,78 @@
+<!-- templates/portfolio/profile.html -->
+{% extends 'base.html' %}
+{% block title %}Profile - {{ user.username }}{% endblock %}
+{% block content %}
+  <div class="row">
+    <div class="col-md-8 offset-md-2">
+      <div class="card">
+        <div class="card-header">
+          <h3>{{ user.username }}'s Profile</h3>
+        </div>
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-md-4 fw-bold">Username:</div>
+            <div class="col-md-8">{{ user.username }}</div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-4 fw-bold">Email:</div>
+            <div class="col-md-8">{{ user.email }}</div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-4 fw-bold">First Name:</div>
+            <div class="col-md-8">{{ user.first_name }}</div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-4 fw-bold">Last Name:</div>
+            <div class="col-md-8">{{ user.last_name }}</div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-4 fw-bold">Address:</div>
+            <div class="col-md-8">{{ user.profile.address }}</div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-4 fw-bold">Phone Number:</div>
+            <div class="col-md-8">{{ user.profile.phone_number }}</div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-4 fw-bold">Location Coordinates:</div>
+            <div class="col-md-8">
+              {% if user.profile.latitude and user.profile.longitude %}
+                Lat: {{ user.profile.latitude }}, Lng: {{ user.profile.longitude }}
+              {% else %}
+                Not set
+              {% endif %}
+            </div>
+          </div>
+          {% if user.profile.latitude and user.profile.longitude %}
+            <div class="row mb-3">
+              <div class="col-12">
+                <div id="profile-map" style="height: 300px;"></div>
+              </div>
+            </div>
+          {% endif %}
+          <div class="text-center">
+            <a href="{% url 'profile_edit' %}" class="btn btn-primary">Edit Profile</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}
+  {% if user.profile.latitude and user.profile.longitude %}
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const map = L.map('profile-map').setView([{{ user.profile.latitude }}, {{ user.profile.longitude }}], 13);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        L.marker([{{ user.profile.latitude }}, {{ user.profile.longitude }}])
+            .addTo(map)
+            .bindPopup("<b>{{ user.username }}</b>")
+            .openPopup();
+    });
+    </script>
+  {% endif %}
+{% endblock %}

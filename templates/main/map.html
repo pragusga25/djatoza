@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+{% block title %}User Map{% endblock %}
+{% block extra_css %}
+  <style>
+    #map-container {
+        position: fixed;
+        top: 56px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 0;
+        margin: 0;
+    }
+    
+    #full-map {
+        width: 100%;
+        height: 100%;
+    }
+    
+    .user-popup {
+        max-width: 300px;
+    }
+
+    .user-popup h5 {
+        margin-bottom: 10px;
+        color: #4a4a4a;
+    }
+
+    .user-popup p {
+        margin-bottom: 5px;
+    }
+
+    .current-user-label {
+        background-color: rgba(0, 128, 255, 0.9);
+        color: white;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-top: 3px;
+        display: inline-block;
+    }
+
+    .map-legend {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 10px;
+        border-radius: 4px;
+        box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+        z-index: 1000;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+
+    .legend-icon {
+        width: 20px;
+        height: 20px;
+        margin-right: 8px;
+        background-size: contain;
+        background-repeat: no-repeat;
+    }
+  </style>
+  <!-- Make sure Leaflet CSS is included -->
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+{% endblock %}
+{% block content %}
+  <div id="map-container">
+    <div id="full-map"></div>
+    <div class="map-legend">
+      <div class="legend-item">
+        <div class="legend-icon" id="your-icon"></div>
+        <span>Your Location</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-icon" id="other-icon"></div>
+        <span>Other Users</span>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}
+  <!-- Include Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize the map with a default view and custom control options
+        const map = L.map('full-map', {
+            zoomControl: false,  // We'll add zoom control in a better position
+        }).setView([0, 0], 2);
+        
+        // Add zoom control to the top-right
+        L.control.zoom({
+            position: 'topright'
+        }).addTo(map);
+        
+        // Add the OpenStreetMap tile layer with a more modern style
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Get current user ID
+        const currentUserId = {{ request.user.id }};
+        
+        // Custom marker icons
+        const currentUserIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+        
+        const otherUserIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+        
+        // Update legend icons
+        document.getElementById('your-icon').style.backgroundImage = "url('https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png')";
+        document.getElementById('other-icon').style.backgroundImage = "url('https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png')";
+        
+        // Fetch user locations from API
+        fetch("{% url 'user_locations' %}")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('User location data:', data);
+                
+                if (data.length > 0) {
+                    const bounds = L.latLngBounds();
+                    let currentUserMarker = null;
+                    
+                    data.forEach(user => {
+                        // Verify coordinates are valid numbers
+                        if (user.latitude && user.longitude && 
+                            !isNaN(parseFloat(user.latitude)) && 
+                            !isNaN(parseFloat(user.longitude))) {
+                            
+                            const lat = parseFloat(user.latitude);
+                            const lng = parseFloat(user.longitude);
+                            
+                            // Check if coordinates are within valid range
+                            if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                                console.log(`Adding marker for user ${user.username} at [${lat}, ${lng}]`);
+                                
+                                // Determine if this is the current user
+                                const isCurrentUser = (user.id === currentUserId);
+                                
+                                // Choose the appropriate icon
+                                const markerIcon = isCurrentUser ? currentUserIcon : otherUserIcon;
+                                
+                                // Create marker with custom icon
+                                const marker = L.marker([lat, lng], {
+                                    icon: markerIcon,
+                                    title: user.name || user.username,
+                                    zIndexOffset: isCurrentUser ? 1000 : 0  // Make current user marker appear on top
+                                }).addTo(map);
+                                
+                                // Store reference to current user marker
+                                if (isCurrentUser) {
+                                    currentUserMarker = marker;
+                                }
+                                
+                                // Customize popup based on whether it's the current user
+                                const initialPopupContent = `
+                                    <div class="user-popup">
+                                        <b>${user.name || user.username}</b>
+                                        ${isCurrentUser ? '<div class="current-user-label">YOU</div>' : ''}
+                                        <p>Loading details...</p>
+                                    </div>
+                                `;
+                                
+                                marker.bindPopup(initialPopupContent);
+                                
+                                marker.on('click', function() {
+                                    fetch(`/api/user/${user.id}/popup/`)
+                                        .then(response => {
+                                            if (!response.ok) {
+                                                throw new Error('Permission denied');
+                                            }
+                                            return response.json();
+                                        })
+                                        .then(userData => {
+                                            const content = `
+                                                <div class="user-popup">
+                                                    <h5>${userData.name || userData.username}</h5>
+                                                    ${isCurrentUser ? '<div class="current-user-label">YOU</div>' : ''}
+                                                    <p><strong>Email:</strong> ${userData.email}</p>
+                                                    <p><strong>Address:</strong> ${userData.address || 'Not provided'}</p>
+                                                    <p><strong>Phone:</strong> ${userData.phone || 'Not provided'}</p>
+                                                </div>
+                                            `;
+                                            marker.setPopupContent(content);
+                                        })
+                                        .catch(err => {
+                                            console.error('Error fetching user details:', err);
+                                            const content = `
+                                                <div class="user-popup">
+                                                    <b>${user.name || user.username}</b>
+                                                    ${isCurrentUser ? '<div class="current-user-label">YOU</div>' : ''}
+                                                    <p>You don't have permission to view this profile.</p>
+                                                </div>
+                                            `;
+                                            marker.setPopupContent(content);
+                                        });
+                                });
+                                
+                                bounds.extend([lat, lng]);
+                            } else {
+                                console.warn(`Invalid coordinates for user ${user.username}: [${lat}, ${lng}]`);
+                            }
+                        } else {
+                            console.warn(`Missing or invalid coordinates for user ${user.username}`);
+                        }
+                    });
+                    
+                    // Only fit bounds if we have valid markers
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds);
+                    }
+                    
+                    // If current user marker exists, open its popup after a short delay
+                    if (currentUserMarker) {
+                        setTimeout(() => {
+                            currentUserMarker.openPopup();
+                        }, 1000);
+                    }
+                } else {
+                    console.log('No user location data available');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching user locations:', error);
+            });
+            
+        // Add a search location button
+        const locationButton = L.control({position: 'topleft'});
+        locationButton.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            div.innerHTML = '<a href="#" title="Find My Location" style="display:flex; justify-content:center; align-items:center; font-size:1.2em;">📍</a>';
+            div.onclick = function() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            const lat = position.coords.latitude;
+                            const lng = position.coords.longitude;
+                            map.setView([lat, lng], 16);
+                        },
+                        function(err) {
+                            console.error('Error getting location:', err);
+                            alert('Unable to get your location. Please check your browser permissions.');
+                        }
+                    );
+                } else {
+                    alert('Location services are not supported by your browser.');
+                }
+                return false;
+            };
+            return div;
+        };
+        locationButton.addTo(map);
+    });
+  </script>
+{% endblock %}

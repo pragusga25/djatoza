@@ -1,0 +1,79 @@
+<!-- templates/portfolio/profile_edit.html -->
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Edit Profile - {{ user.username }}{% endblock %}
+{% block content %}
+  <div class="row">
+    <div class="col-md-8 offset-md-2">
+      <div class="card">
+        <div class="card-header">
+          <h3>Edit Profile</h3>
+        </div>
+        <div class="card-body">
+          <form method="POST">
+            {% csrf_token %}
+            <fieldset class="mb-4">
+              <legend class="border-bottom mb-3">User Information</legend>
+              {{ user_form|crispy }}
+            </fieldset>
+            <fieldset class="mb-4">
+              <legend class="border-bottom mb-3">Profile Information</legend>
+              {{ profile_form|crispy }}
+            </fieldset>
+            <div class="mb-3">
+              <div id="location-map" style="height: 300px;"></div>
+              <small class="form-text text-muted">Click on the map to set your location or enter coordinates manually above.</small>
+            </div>
+            <div class="text-center">
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+              <a href="{% url 'profile' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block extra_js %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const latField = document.getElementById('id_latitude');
+        const lngField = document.getElementById('id_longitude');
+        
+        let lat = latField.value ? parseFloat(latField.value) : 0;
+        let lng = lngField.value ? parseFloat(lngField.value) : 0;
+        
+        // Default to a location if no coordinates are set
+        if (lat === 0 && lng === 0) {
+            lat = -33.9249;  // Default to Cape Town
+            lng = 18.4241;
+        }
+        
+        const map = L.map('location-map').setView([lat, lng], 13);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        let marker;
+        if (lat !== 0 && lng !== 0) {
+            marker = L.marker([lat, lng]).addTo(map);
+        }
+        
+        // Update marker and fields when the map is clicked
+        map.on('click', function(e) {
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            
+            lat = e.latlng.lat;
+            lng = e.latlng.lng;
+            
+            latField.value = lat.toFixed(6);
+            lngField.value = lng.toFixed(6);
+            
+            marker = L.marker([lat, lng]).addTo(map);
+        });
+    });
+  </script>
+{% endblock %}
