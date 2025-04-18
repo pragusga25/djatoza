@@ -22,7 +22,7 @@ class UserProfileTest(TestCase):
         self.client.login(username="testuser", password="testpassword123")
         response = self.client.get(reverse("profile"))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "portfolio/profile.html")
+        self.assertTemplateUsed(response, "main/profile.html")
 
     def test_profile_edit(self):
         """Test that a user can edit their profile"""
@@ -31,7 +31,7 @@ class UserProfileTest(TestCase):
         # Test GET request
         response = self.client.get(reverse("profile_edit"))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "portfolio/profile_edit.html")
+        self.assertTemplateUsed(response, "main/profile_edit.html")
 
         # Test POST request
         data = {
@@ -83,6 +83,9 @@ class MapTest(TestCase):
         self.superuser = User.objects.create_superuser(
             username="admin", email="admin@example.com", password="adminpassword123"
         )
+        self.superuser.profile.latitude = 45.0
+        self.superuser.profile.longitude = -75.0
+        self.superuser.profile.save()
 
         self.client = Client()
 
@@ -91,7 +94,7 @@ class MapTest(TestCase):
         self.client.login(username="testuser", password="testpassword123")
         response = self.client.get(reverse("map"))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "portfolio/map.html")
+        self.assertTemplateUsed(response, "main/map.html")
 
     def test_get_user_locations(self):
         """Test the user locations API"""
